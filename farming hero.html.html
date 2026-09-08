@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farming Hero - Smart Farm Management</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js for lightweight UI interactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Expense & Irrigation Data Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Custom UI Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        @keyframes pulse-water {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-water { animation: pulse-water 2s infinite; }
+        
+        /* Smooth transitions for tabs and field cards */
+        .tab-transition { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased" x-data="farmApp()">
+
+    <!-- Main Sidebar & Layout Header -->
+    <div class="min-h-screen flex flex-col md:flex-row">
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 bg-emerald-900 text-emerald-100 flex-shrink-0 p-5 shadow-xl flex flex-col justify-between">
+            <div>
+                <!-- Brand Title -->
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="bg-emerald-500 text-white p-3 rounded-2xl animate-float shadow-lg">
+                        <i class="fa-solid fa-wheat-awn text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-wide text-white">Farming Hero</h1>
+                        <p class="text-xs text-emerald-300">Smart Farm Controller</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav class="space-y-2">
+                    <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-emerald-700 text-white shadow-md' : 'text-emerald-200 hover:bg-emerald-800/50'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition tab-transition">
+                        <i class="fa-solid fa-chart-pie w-5"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button @click="currentTab = 'fields'" :class="currentTab === 'fields' ? 'bg-emerald-700 text-white shadow-md' : 'text-emerald-200 hover:bg-emerald-800/50'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition tab-transition">
+                        <i class="fa-solid fa-border-all w-5"></i>
+                        <span>Field Management</span>
+                    </button>
+                    <button @click="currentTab = 'expenses'" :class="currentTab === 'expenses' ? 'bg-emerald-700 text-white shadow-md' : 'text-emerald-200 hover:bg-emerald-800/50'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition tab-transition">
+                        <i class="fa-solid fa-wallet w-5"></i>
+                        <span>Total Expenses</span>
+                    </button>
+                    <button @click="currentTab = 'equipment'" :class="currentTab === 'equipment' ? 'bg-emerald-700 text-white shadow-md' : 'text-emerald-200 hover:bg-emerald-800/50'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-medium transition tab-transition">
+                        <i class="fa-solid fa-tractor w-5"></i>
+                        <span>Equipment & Supplies</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Weather Live Status Widget -->
+            <div class="bg-emerald-800/60 border border-emerald-700 p-4 rounded-2xl mt-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs uppercase font-semibold tracking-wider text-emerald-300">Live Weather</span>
+                    <i class="fa-solid fa-cloud-sun-rain text-amber-300 text-lg"></i>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span class="text-2xl font-bold text-white">28°C</span>
+                    <span class="text-xs text-emerald-200">Partly Cloudy</span>
+                </div>
+                <p class="text-[11px] text-emerald-300 mt-1"><i class="fa-solid fa-droplet text-blue-300 mr-1"></i> Rain forecast in 2 days</p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-6 md:p-8 overflow-y-auto">
+
+            <!-- Top Header Bar -->
+            <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800" x-text="getTabTitle()"></h2>
+                    <p class="text-sm text-slate-500">Welcome back, Farm Manager. Here is today's overview.</p>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <button @click="openModal('addField')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md shadow-emerald-600/20 flex items-center space-x-2 transition">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Add New Field</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- TAB 1: DASHBOARD OVERVIEW -->
+            <div x-show="currentTab === 'dashboard'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" class="space-y-6">
+                
+                <!-- Quick Metric Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 card-hover transition">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-xs font-semibold uppercase text-slate-400">Total Land</span>
+                            <div class="w-9 h-9 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                                <i class="fa-solid fa-vector-square"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800">125.5 <span class="text-sm font-normal text-slate-500">Acres</span></p>
+                        <p class="text-xs text-emerald-600 mt-2 font-medium"><i class="fa-solid fa-arrow-up mr-1"></i> 4 Active Fields</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 card-hover transition">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-xs font-semibold uppercase text-slate-400">Daily Water Intake</span>
+                            <div class="w-9 h-9 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center animate-water">
+                                <i class="fa-solid fa-droplet"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800">14,200 <span class="text-sm font-normal text-slate-500">Liters</span></p>
+                        <p class="text-xs text-blue-600 mt-2 font-medium"><i class="fa-solid fa-circle-check mr-1"></i> All fields irrigated today</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 card-hover transition">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-xs font-semibold uppercase text-slate-400">Harvest Approaching</span>
+                            <div class="w-9 h-9 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center">
+                                <i class="fa-solid fa-wheat-awn-circle-exclamation"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800">Field #2 <span class="text-sm font-normal text-slate-500">(Wheat)</span></p>
+                        <p class="text-xs text-amber-600 mt-2 font-medium"><i class="fa-solid fa-clock mr-1"></i> 5 Days Remaining</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 card-hover transition">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-xs font-semibold uppercase text-slate-400">Total Expense (Month)</span>
+                            <div class="w-9 h-9 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center">
+                                <i class="fa-solid fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800">$8,450</p>
+                        <p class="text-xs text-rose-600 mt-2 font-medium"><i class="fa-solid fa-chart-line mr-1"></i> Calculated across 4 fields</p>
+                    </div>
+                </div>
+
+                <!-- Charts & Active Fields Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Expense Analytics Chart -->
+                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-800">Expense Breakdown by Field</h3>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-full font-medium">Real-time Data</span>
+                        </div>
+                        <div class="h-64 relative">
+                            <canvas id="dashboardExpenseChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Quick Urgent Tasks -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center justify-between">
+                            <span>Field Priority Tasks</span>
+                            <i class="fa-solid fa-bell text-emerald-600"></i>
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r-xl">
+                                <p class="text-xs font-bold text-amber-800">North Plot (Field #1)</p>
+                                <p class="text-xs text-amber-700 mt-0.5">N-P-K Fertilizer scheduled for tomorrow morning.</p>
+                            </div>
+                            <div class="p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-xl">
+                                <p class="text-xs font-bold text-blue-800">South Paddy (Field #3)</p>
+                                <p class="text-xs text-blue-700 mt-0.5">Water level check required. Increase by 500L.</p>
+                            </div>
+                            <div class="p-3 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl">
+                                <p class="text-xs font-bold text-emerald-800">West Corn Field (#4)</p>
+                                <p class="text-xs text-emerald-700 mt-0.5">Growth stage updated: Vegetative to Flowering.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: SEPARATE FIELD MANAGEMENT -->
+            <div x-show="currentTab === 'fields'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Loop Through Fields Card -->
+                    <template x-for="field in fields" :key="field.id">
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden card-hover transition flex flex-col justify-between">
+                            <div>
+                                <!-- Header Image / Gradient Banner -->
+                                <div class="h-28 bg-gradient-to-r from-emerald-600 to-teal-700 p-4 text-white flex justify-between items-start relative">
+                                    <div>
+                                        <span class="text-[10px] uppercase font-bold tracking-widest bg-black/20 px-2 py-0.5 rounded-md" x-text="'Field ID #' + field.id"></span>
+                                        <h4 class="text-lg font-bold mt-1" x-text="field.name"></h4>
+                                    </div>
+                                    <span class="bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-medium" x-text="field.area_acres + ' Acres'"></span>
+                                </div>
+
+                                <!-- Field Details Content -->
+                                <div class="p-5 space-y-4">
+                                    <div class="flex items-center justify-between text-xs text-slate-500 border-b pb-3">
+                                        <span><i class="fa-solid fa-seedling text-emerald-600 mr-1.5"></i> Crop: <strong class="text-slate-700" x-text="field.crop"></strong></span>
+                                        <span><i class="fa-solid fa-layer-group text-amber-600 mr-1.5"></i> Soil: <strong class="text-slate-700" x-text="field.soil"></strong></span>
+                                    </div>
+
+                                    <!-- Growth Progress Indicator -->
+                                    <div>
+                                        <div class="flex justify-between items-center text-xs mb-1">
+                                            <span class="font-medium text-slate-600">Growth Stage: <span class="font-bold text-emerald-700" x-text="field.stage"></span></span>
+                                            <span class="text-slate-400" x-text="field.progress + '%'"></span>
+                                        </div>
+                                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                            <div class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" :style="'width: ' + field.progress + '%'"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Water & Expense Quick Stats -->
+                                    <div class="grid grid-cols-2 gap-2 text-center pt-1">
+                                        <div class="bg-blue-50/60 p-2.5 rounded-xl border border-blue-100">
+                                            <p class="text-[10px] uppercase font-bold text-blue-500">Water Logged</p>
+                                            <p class="text-sm font-bold text-slate-800" x-text="field.water + ' L'"></p>
+                                        </div>
+                                        <div class="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
+                                            <p class="text-[10px] uppercase font-bold text-emerald-600">Total Field Expense</p>
+                                            <p class="text-sm font-bold text-slate-800" x-text="'$' + field.expense"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer Action Button -->
+                            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                                <span class="text-xs text-slate-500"><i class="fa-solid fa-calendar-day mr-1"></i> Harvest: <span x-text="field.harvest_date"></span></span>
+                                <button @click="openFieldDetail(field)" class="bg-slate-800 hover:bg-emerald-700 text-white text-xs px-3.5 py-2 rounded-xl font-medium transition">
+                                    View Details <i class="fa-solid fa-arrow-right ml-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                </div>
+            </div>
+
+            <!-- TAB 3: EXPENSES & FINANCIAL TRACKING -->
+            <div x-show="currentTab === 'expenses'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" class="space-y-6">
+                
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Total Farm Expenses</h3>
+                        <p class="text-sm text-slate-500">Automated aggregate sum from all fields and operations.</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-3xl font-extrabold text-emerald-600">$8,450.00</span>
+                        <p class="text-xs text-slate-400">Calculated for active month</p>
+                    </div>
+                </div>
+
+                <!-- Expense Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                        <h4 class="font-bold text-slate-800">Recent Operational Expenses</h4>
+                        <button @click="openModal('addExpense')" class="bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition">
+                            <i class="fa-solid fa-plus mr-1"></i> Log Expense
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-slate-400 uppercase text-[10px] font-bold">
+                                <tr>
+                                    <th class="py-3.5 px-6">Date</th>
+                                    <th class="py-3.5 px-6">Field Name</th>
+                                    <th class="py-3.5 px-6">Category</th>
+                                    <th class="py-3.5 px-6">Description</th>
+                                    <th class="py-3.5 px-6 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="item in expenseLogs" :key="item.id">
+                                    <tr class="hover:bg-slate-50/80 transition">
+                                        <td class="py-3.5 px-6 font-medium text-slate-800" x-text="item.date"></td>
+                                        <td class="py-3.5 px-6" x-text="item.fieldName"></td>
+                                        <td class="py-3.5 px-6">
+                                            <span class="px-2.5 py-1 rounded-full text-xs font-semibold" 
+                                                  :class="{
+                                                      'bg-blue-100 text-blue-700': item.category === 'Water / Irrigation',
+                                                      'bg-emerald-100 text-emerald-700': item.category === 'Fertilizer',
+                                                      'bg-amber-100 text-amber-700': item.category === 'Equipment',
+                                                      'bg-purple-100 text-purple-700': item.category === 'Labor'
+                                                  }" x-text="item.category"></span>
+                                        </td>
+                                        <td class="py-3.5 px-6 text-slate-500" x-text="item.description"></td>
+                                        <td class="py-3.5 px-6 text-right font-bold text-slate-800" x-text="'$' + item.amount"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TAB 4: EQUIPMENT & SUPPLIES -->
+            <div x-show="currentTab === 'equipment'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <template x-for="item in equipmentList" :key="item.id">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center space-x-4 card-hover transition">
+                            <div class="w-12 h-12 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-center text-xl flex-shrink-0">
+                                <i :class="item.icon"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between items-start">
+                                    <h4 class="font-bold text-slate-800" x-text="item.name"></h4>
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md" 
+                                          :class="item.status === 'Operational' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+                                          x-text="item.status"></span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1" x-text="'Assigned to: ' + item.assignedField"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- SEPARATE FIELD DETAILED MODAL PAGE -->
+    <div x-show="activeModal === 'fieldDetail'" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+        <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" @click.outside="activeModal = null">
+            
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-6 flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-bold text-emerald-400 uppercase tracking-widest">Field Deep-Dive Page</span>
+                    <h3 class="text-2xl font-bold" x-text="selectedField.name"></h3>
+                </div>
+                <button @click="activeModal = null" class="w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Scrollable Body -->
+            <div class="p-6 overflow-y-auto space-y-6">
+
+                <!-- Dynamic Intake Tracker Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-blue-50/80 p-4 rounded-2xl border border-blue-200 flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-blue-600 font-semibold uppercase">Water Intake Tracked</p>
+                            <p class="text-2xl font-bold text-slate-800 mt-1" x-text="selectedField.water + ' Liters'"></p>
+                        </div>
+                        <button @click="logWater(selectedField)" class="bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-bold hover:bg-blue-700 transition">
+                            + Add Irrigation
+                        </button>
+                    </div>
+
+                    <div class="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-emerald-600 font-semibold uppercase">Fertilizer Intake</p>
+                            <p class="text-2xl font-bold text-slate-800 mt-1">45.0 <span class="text-sm font-normal">kg</span></p>
+                        </div>
+                        <button class="bg-emerald-600 text-white text-xs px-3 py-2 rounded-xl font-bold hover:bg-emerald-700 transition">
+                            + Add Fertilizer
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Crop Timeline & Stage Tracker -->
+                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                    <h4 class="text-sm font-bold text-slate-800 mb-3">Crop Growth Timeline (<span x-text="selectedField.crop"></span>)</h4>
+                    <div class="flex items-center justify-between text-xs font-medium text-slate-500 relative">
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold mb-1"><i class="fa-solid fa-check"></i></div>
+                            <span>Planted</span>
+                        </div>
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold mb-1"><i class="fa-solid fa-check"></i></div>
+                            <span>Vegetative</span>
+                        </div>
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold mb-1 animate-bounce"><i class="fa-solid fa-wheat-awn"></i></div>
+                            <span class="text-amber-600 font-bold">Flowering</span>
+                        </div>
+                        <div class="flex flex-col items-center z-10">
+                            <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold mb-1"><i class="fa-solid fa-scissors"></i></div>
+                            <span>Harvest</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Specific Field Expenses Summary -->
+                <div class="bg-white border rounded-2xl p-4">
+                    <h4 class="text-sm font-bold text-slate-800 mb-2">Field Expenses History</h4>
+                    <p class="text-xs text-slate-500">Calculated expense for this specific field: <strong class="text-emerald-600 font-bold" x-text="'$' + selectedField.expense"></strong></p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Frontend Dynamic Data Logic (Alpine.js) -->
+    <script>
+        function farmApp() {
+            return {
+                currentTab: 'dashboard',
+                activeModal: null,
+                selectedField: {},
+                
+                // Demo Data State representing the DB Backend Response
+                fields: [
+                    { id: 1, name: 'North Wheat Sector', area_acres: 35.0, crop: 'Golden Wheat', soil: 'Loam', stage: 'Flowering', progress: 75, water: 4200, expense: 2100, harvest_date: '2026-09-25' },
+                    { id: 2, name: 'South Paddy Fields', area_acres: 50.0, crop: 'Rice (Boro)', soil: 'Clay', stage: 'Seedling', progress: 30, water: 6500, expense: 3400, harvest_date: '2026-11-10' },
+                    { id: 3, name: 'West Corn Plot', area_acres: 20.5, crop: 'Sweet Corn', soil: 'Sandy Loam', stage: 'Harvest-Ready', progress: 95, water: 2100, expense: 1850, harvest_date: '2026-09-12' },
+                    { id: 4, name: 'East Vegetable Hub', area_acres: 20.0, crop: 'Organic Tomatoes', soil: 'Silt', stage: 'Vegetative', progress: 45, water: 1400, expense: 1100, harvest_date: '2026-10-05' }
+                ],
+
+                expenseLogs: [
+                    { id: 101, date: '2026-09-07', fieldName: 'North Wheat Sector', category: 'Water / Irrigation', description: 'Deep tube-well electric power cost', amount: 350 },
+                    { id: 102, date: '2026-09-06', fieldName: 'South Paddy Fields', category: 'Fertilizer', description: '5 Bags of Urea & Potash applied', amount: 620 },
+                    { id: 103, date: '2026-09-05', fieldName: 'West Corn Plot', category: 'Equipment', description: 'Tractor fuel & daily maintenance', amount: 180 },
+                    { id: 104, date: '2026-09-04', fieldName: 'East Vegetable Hub', category: 'Labor', description: 'Weekly payment for 4 field workers', amount: 400 }
+                ],
+
+                equipmentList: [
+                    { id: 1, name: 'John Deere Tractor #1', status: 'Operational', assignedField: 'North Wheat Sector', icon: 'fa-solid fa-tractor' },
+                    { id: 2, name: 'Automated Solar Water Pump', status: 'Operational', assignedField: 'South Paddy Fields', icon: 'fa-solid fa-faucet-drip' },
+                    { id: 3, name: 'Combine Harvester', status: 'Maintenance Required', assignedField: 'West Corn Plot', icon: 'fa-solid fa-gear' }
+                ],
+
+                getTabTitle() {
+                    if (this.currentTab === 'dashboard') return 'Farm Performance Dashboard';
+                    if (this.currentTab === 'fields') return 'All Fields Overview';
+                    if (this.currentTab === 'expenses') return 'Total Expense Calculation';
+                    if (this.currentTab === 'equipment') return 'Equipment & Supplies Inventory';
+                },
+
+                openFieldDetail(field) {
+                    this.selectedField = field;
+                    this.activeModal = 'fieldDetail';
+                },
+
+                openModal(type) {
+                    alert('Integration Ready: This will open input modal for ' + type);
+                },
+
+                logWater(field) {
+                    field.water += 500;
+                    alert('Successfully added 500 Liters water to ' + field.name);
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('dashboardExpenseChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['North Wheat', 'South Paddy', 'West Corn', 'East Veg Hub'],
+                            datasets: [{
+                                label: 'Expenses ($)',
+                                data: [2100, 3400, 1850, 1100],
+                                backgroundColor: ['#10b981', '#0b7667', '#f59e0b', '#3b82f6'],
+                                borderRadius: 12
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = farmApp();
+            app.initChart();
+        });
+    </script>
+</body>
+</html>
